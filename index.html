@@ -57,6 +57,12 @@ button {
     <div class="small" id="mode">MODE: 1:6</div>
 
     <div class="panel">
+        <button onclick="start()">START</button>
+        <button onclick="pause()">PAUSE</button>
+        <button onclick="reset()">RESET</button>
+    </div>
+
+    <div class="panel">
         <button onclick="setSpeed(1)">1:1</button>
         <button onclick="setSpeed(6)">1:6</button>
     </div>
@@ -74,17 +80,22 @@ button {
 <script>
 let speed = 6;
 let offset = 0;
+let running = false;
+let lastUpdate = null;
 
-// спільний старт (однаковий для всіх пристроїв)
-const START_TIME = 1760000000000;
+function getSeconds() {
+    if (!running) return offset;
 
-function getGameSeconds() {
-    const real = (Date.now() - START_TIME) / 1000;
-    return Math.floor(real * speed + offset);
+    const now = Date.now();
+    const diff = (now - lastUpdate) / 1000;
+    lastUpdate = now;
+
+    offset += diff * speed;
+    return offset;
 }
 
 function render() {
-    let total = getGameSeconds();
+    const total = Math.floor(getSeconds());
 
     let days = Math.floor(total / 86400);
     let r = total % 86400;
@@ -104,12 +115,30 @@ function render() {
     document.getElementById("mode").innerText = "MODE: 1:" + speed;
 }
 
+function start() {
+    if (!running) {
+        running = true;
+        lastUpdate = Date.now();
+    }
+}
+
+function pause() {
+    running = false;
+}
+
+function reset() {
+    running = false;
+    offset = 0;
+    render();
+}
+
 function setSpeed(v) {
     speed = v;
 }
 
 function addHours(h) {
     offset += h * 3600;
+    render();
 }
 
 setInterval(render, 1000);
