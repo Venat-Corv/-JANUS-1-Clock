@@ -1,4 +1,164 @@
 <!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Mission Clock</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: monospace;
+    background: radial-gradient(circle at top, #0b1a22, #020406);
+    color: #8ffcff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    width: 95%;
+    max-width: 520px;
+    text-align: center;
+}
+
+.clock {
+    font-size: 64px;
+    margin: 20px 0;
+    letter-spacing: 2px;
+}
+
+.small {
+    font-size: 14px;
+    opacity: 0.7;
+}
+
+input {
+    width: 80%;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #8ffcff;
+    background: transparent;
+    color: #8ffcff;
+    text-align: center;
+    font-size: 16px;
+}
+
+button {
+    margin: 5px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #8ffcff;
+    background: transparent;
+    color: #8ffcff;
+}
+
+.panel {
+    margin-top: 15px;
+}
+
+.hidden {
+    display: none;
+}
+
+hr {
+    border: none;
+    border-top: 1px solid rgba(143,252,255,0.2);
+    margin: 20px 0;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- LOCK MODE -->
+    <div id="lockView">
+        <div class="small">MISSION CLOCK</div>
+        <div class="clock" id="clockLock">00:00:00</div>
+
+        <input id="codeInput" type="password" placeholder="ACCESS CODE" />
+        <br>
+        <button onclick="unlock()">UNLOCK</button>
+    </div>
+
+    <!-- ADMIN MODE -->
+    <div id="adminView" class="hidden">
+
+        <div class="small" id="dayLabel">DAY 1</div>
+        <div class="clock" id="clockAdmin">00:00:00</div>
+
+        <hr>
+
+        <div class="panel">
+            <button onclick="setSpeed(1)">1:1</button>
+            <button onclick="setSpeed(6)">1:6</button>
+        </div>
+
+        <div class="panel">
+            <button onclick="addTime(-1)">-1H</button>
+            <button onclick="addTime(1)">+1H</button>
+            <button onclick="addTime(6)">+6H</button>
+            <button onclick="addTime(8)">+8H</button>
+            <button onclick="addTime(24)">+1D</button>
+        </div>
+
+        <div class="panel">
+            <button onclick="lock()">LOCK</button>
+            <button onclick="reset()">RESET</button>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+(() => {
+
+let state = {
+    minutes: 0,
+    speed: 6,
+    unlocked: false
+};
+
+// demo password = "test"
+const PASSWORD_HASH = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+
+// ---------- helpers ----------
+function el(id) {
+    return document.getElementById(id);
+}
+
+function safeSet(id, value) {
+    const node = el(id);
+    if (node) node.innerText = value;
+}
+
+async function sha256(text) {
+    const buf = new TextEncoder().encode(text);
+    const hash = await crypto.subtle.digest('SHA-256', buf);
+    return [...new Uint8Array(hash)]
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+// ---------- clock ----------
+function render() {
+    let total = Math.floor(state.minutes * 60);
+
+    let days = Math.floor(total / 86400);
+    let r = total % 86400;
+
+    let h = Math.floor(r / 3600);
+    r %= 3600;
+
+    let m = Math.floor(r / 60);
+    let s = r % 60;
+
+    const time =
         String(h).padStart(2,'0') + ':' +
         String(m).padStart(2,'0') + ':' +
         String(s).padStart(2,'0');
@@ -8,7 +168,7 @@
     safeSet('dayLabel', 'DAY ' + (days + 1));
 }
 
-// -------------------- CONTROL --------------------
+// ---------- logic ----------
 function tick() {
     if (!state.unlocked) return;
     state.minutes += state.speed / 60;
@@ -32,11 +192,8 @@ function reset() {
 function lock() {
     state.unlocked = false;
 
-    const admin = el('adminView');
-    const lock = el('lockView');
-
-    if (admin) admin.classList.add('hidden');
-    if (lock) lock.classList.remove('hidden');
+    el('adminView').classList.add('hidden');
+    el('lockView').classList.remove('hidden');
 }
 
 async function unlock() {
@@ -48,17 +205,14 @@ async function unlock() {
     if (hash === PASSWORD_HASH) {
         state.unlocked = true;
 
-        const admin = el('adminView');
-        const lock = el('lockView');
-
-        if (admin) admin.classList.remove('hidden');
-        if (lock) lock.classList.add('hidden');
+        el('adminView').classList.remove('hidden');
+        el('lockView').classList.add('hidden');
     } else {
         alert('WRONG CODE');
     }
 }
 
-// -------------------- INIT --------------------
+// ---------- init ----------
 setInterval(tick, 1000);
 render();
 
