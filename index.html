@@ -83,19 +83,44 @@ let offset = 0;
 let running = false;
 let lastUpdate = null;
 
-function getSeconds() {
-    if (!running) return offset;
+const STORAGE = {
+    offset: "mc_offset",
+    running: "mc_running",
+    speed: "mc_speed",
+    last: "mc_last"
+};
 
-    const now = Date.now();
-    const diff = (now - lastUpdate) / 1000;
-    lastUpdate = now;
+function save() {
+    localStorage.setItem(STORAGE.offset, offset);
+    localStorage.setItem(STORAGE.running, running ? "1" : "0");
+    localStorage.setItem(STORAGE.speed, speed);
+    localStorage.setItem(STORAGE.last, lastUpdate || Date.now());
+}
 
-    offset += diff * speed;
-    return offset;
+function load() {
+    const o = localStorage.getItem(STORAGE.offset);
+    const r = localStorage.getItem(STORAGE.running);
+    const s = localStorage.getItem(STORAGE.speed);
+    const l = localStorage.getItem(STORAGE.last);
+
+    if (o !== null) offset = parseFloat(o);
+    if (r !== null) running = r === "1";
+    if (s !== null) speed = parseFloat(s);
+    if (l !== null) lastUpdate = parseInt(l);
+}
+
+function tick() {
+    if (running) {
+        const now = Date.now();
+        const diff = (now - lastUpdate) / 1000;
+        offset += diff * speed;
+        lastUpdate = now;
+        save();
+    }
 }
 
 function render() {
-    const total = Math.floor(getSeconds());
+    const total = Math.floor(offset);
 
     let days = Math.floor(total / 86400);
     let r = total % 86400;
@@ -119,29 +144,38 @@ function start() {
     if (!running) {
         running = true;
         lastUpdate = Date.now();
+        save();
     }
 }
 
 function pause() {
     running = false;
+    save();
 }
 
 function reset() {
     running = false;
     offset = 0;
-    render();
+    lastUpdate = Date.now();
+    save();
 }
 
 function setSpeed(v) {
     speed = v;
+    save();
 }
 
 function addHours(h) {
     offset += h * 3600;
-    render();
+    save();
 }
 
-setInterval(render, 1000);
+load();
+setInterval(() => {
+    tick();
+    render();
+}, 1000);
+
 render();
 </script>
 
