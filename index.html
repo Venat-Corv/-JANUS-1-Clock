@@ -9,19 +9,18 @@
 body {
     margin: 0;
     font-family: monospace;
-    background: radial-gradient(circle at top, #0b1a22, #020406);
+    background: #05070a;
     color: #8ffcff;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
-    overflow: hidden;
 }
 
 .container {
+    text-align: center;
     width: 95%;
     max-width: 520px;
-    text-align: center;
 }
 
 .clock {
@@ -30,37 +29,21 @@ body {
 }
 
 .small {
-    font-size: 14px;
     opacity: 0.7;
-}
-
-input {
-    width: 80%;
-    padding: 12px;
-    border-radius: 10px;
-    border: 1px solid #8ffcff;
-    background: transparent;
-    color: #8ffcff;
-    text-align: center;
-    font-size: 16px;
+    font-size: 14px;
 }
 
 button {
     margin: 5px;
     padding: 10px 14px;
-    border-radius: 10px;
     border: 1px solid #8ffcff;
     background: transparent;
     color: #8ffcff;
+    border-radius: 10px;
 }
 
-.panel { margin-top: 15px; }
-.hidden { display: none; }
-
-hr {
-    border: none;
-    border-top: 1px solid rgba(143,252,255,0.2);
-    margin: 20px 0;
+.panel {
+    margin-top: 15px;
 }
 </style>
 </head>
@@ -69,97 +52,41 @@ hr {
 
 <div class="container">
 
-    <div id="lockView">
-        <div class="small">MISSION CLOCK</div>
-        <div class="clock" id="clockLock">--:--:--</div>
-        <div class="small" id="status">WAITING FOR MISSION START</div>
+    <div class="small" id="day">DAY 1</div>
+    <div class="clock" id="time">00:00:00</div>
+    <div class="small" id="mode">MODE: 1:6</div>
 
-        <input id="codeInput" type="password" placeholder="ACCESS CODE" />
-        <br>
-        <button onclick="unlock()">UNLOCK</button>
+    <div class="panel">
+        <button onclick="setSpeed(1)">1:1</button>
+        <button onclick="setSpeed(6)">1:6</button>
     </div>
 
-    <div id="adminView" class="hidden">
-
-        <div class="small" id="dayLabel">DAY 1</div>
-        <div class="clock" id="clockAdmin">00:00:00</div>
-
-        <div class="small" id="modeLabel">MODE: 1:6</div>
-
-        <hr>
-
-        <div class="panel">
-            <button onclick="setSpeed(1)">1:1</button>
-            <button onclick="setSpeed(6)">1:6</button>
-        </div>
-
-        <div class="panel">
-            <button onclick="addTime(-1)">-1H</button>
-            <button onclick="addTime(1)">+1H</button>
-            <button onclick="addTime(6)">+6H</button>
-            <button onclick="addTime(8)">+8H</button>
-            <button onclick="addTime(24)">+1D</button>
-        </div>
-
-        <div class="panel">
-            <button onclick="startMission()">START MISSION</button>
-            <button onclick="lock()">LOCK</button>
-            <button onclick="reset()">RESET</button>
-        </div>
-
+    <div class="panel">
+        <button onclick="addHours(-1)">-1H</button>
+        <button onclick="addHours(1)">+1H</button>
+        <button onclick="addHours(6)">+6H</button>
+        <button onclick="addHours(8)">+8H</button>
+        <button onclick="addHours(24)">+1D</button>
     </div>
 
 </div>
 
 <script>
-(() => {
+let speed = 6;
+let offset = 0;
 
-const PASSWORD = "JANUS-7XK9-OMEGA";
+// спільний старт (однаковий для всіх пристроїв)
+const START_TIME = 1760000000000;
 
-let state = {
-    unlocked: false,
-    speed: 6,
-    offset: 0,
-    startTime: null
-};
-
-function el(id){ return document.getElementById(id); }
-
-function safe(id, val){
-    const n = el(id);
-    if(n) n.innerText = val;
+function getGameSeconds() {
+    const real = (Date.now() - START_TIME) / 1000;
+    return Math.floor(real * speed + offset);
 }
 
-function save(){
-    localStorage.setItem("m_speed", state.speed);
-    localStorage.setItem("m_offset", state.offset);
-    if(state.startTime) localStorage.setItem("m_start", state.startTime);
-}
+function render() {
+    let total = getGameSeconds();
 
-function load(){
-    const s = localStorage.getItem("m_speed");
-    const o = localStorage.getItem("m_offset");
-    const t = localStorage.getItem("m_start");
-
-    if(s) state.speed = +s;
-    if(o) state.offset = +o;
-    if(t) state.startTime = +t;
-}
-
-function running(){
-    return state.startTime !== null;
-}
-
-function gameSeconds(){
-    if(!running()) return 0;
-    const real = (Date.now() - state.startTime) / 1000;
-    return Math.floor(real * state.speed + state.offset);
-}
-
-function render(){
-    const total = gameSeconds();
-
-    let d = Math.floor(total / 86400);
+    let days = Math.floor(total / 86400);
     let r = total % 86400;
 
     let h = Math.floor(r / 3600);
@@ -168,73 +95,25 @@ function render(){
     let m = Math.floor(r / 60);
     let s = r % 60;
 
-    const time =
-        String(h).padStart(2,'0') + ':' +
-        String(m).padStart(2,'0') + ':' +
+    document.getElementById("time").innerText =
+        String(h).padStart(2,'0') + ":" +
+        String(m).padStart(2,'0') + ":" +
         String(s).padStart(2,'0');
 
-    safe("clockLock", running() ? time : "--:--:--");
-    safe("clockAdmin", time);
-    safe("dayLabel", "DAY " + (d + 1));
-    safe("status", running() ? "MISSION ACTIVE" : "WAITING FOR MISSION START");
-    safe("modeLabel", "MODE: 1:" + state.speed);
+    document.getElementById("day").innerText = "DAY " + (days + 1);
+    document.getElementById("mode").innerText = "MODE: 1:" + speed;
 }
 
-function tick(){
-    render();
+function setSpeed(v) {
+    speed = v;
 }
 
-function setSpeed(v){
-    state.speed = v;
-    save();
+function addHours(h) {
+    offset += h * 3600;
 }
 
-function addTime(h){
-    state.offset += h * 3600;
-    save();
-}
-
-function startMission(){
-    if(state.startTime === null){
-        state.startTime = Date.now();
-        save();
-    }
-}
-
-function reset(){
-    state.startTime = null;
-    state.offset = 0;
-    localStorage.clear();
-}
-
-function lock(){
-    state.unlocked = false;
-    el("adminView").classList.add("hidden");
-    el("lockView").classList.remove("hidden");
-}
-
-function unlock(){
-    const v = el("codeInput").value;
-    if(v === PASSWORD){
-        state.unlocked = true;
-        el("adminView").classList.remove("hidden");
-        el("lockView").classList.add("hidden");
-    } else {
-        alert("WRONG CODE");
-    }
-}
-
-load();
-setInterval(tick, 1000);
-
-window.setSpeed = setSpeed;
-window.addTime = addTime;
-window.startMission = startMission;
-window.reset = reset;
-window.lock = lock;
-window.unlock = unlock;
-
-})();
+setInterval(render, 1000);
+render();
 </script>
 
 </body>
