@@ -1,79 +1,75 @@
 <!DOCTYPE html>
-// для реального захисту використовуй server-side або build-time injection
-
-const PASSWORD_HASH = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"; // "test"
-
-let gameMinutes = 0;
-let speed = 6;
-let unlocked = false;
-
-async function sha256(text) {
-    const msgBuffer = new TextEncoder().encode(text);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-function updateClock() {
-    let total = Math.floor(gameMinutes * 60);
-
-    let d = Math.floor(total / 86400);
-    let r = total % 86400;
-
-    let h = Math.floor(r / 3600);
-    r %= 3600;
-
-    let m = Math.floor(r / 60);
-    let s = r % 60;
-
-    const time =
         String(h).padStart(2,'0') + ':' +
         String(m).padStart(2,'0') + ':' +
         String(s).padStart(2,'0');
 
-    document.getElementById('clock').innerText = time;
-    document.getElementById('clockAdmin').innerText = time;
+    safeSet('clockLock', time);
+    safeSet('clockAdmin', time);
+    safeSet('dayLabel', 'DAY ' + (days + 1));
 }
 
+// -------------------- CONTROL --------------------
 function tick() {
-    if (unlocked) {
-        gameMinutes += speed / 60;
-        updateClock();
-    }
+    if (!state.unlocked) return;
+    state.minutes += state.speed / 60;
+    render();
 }
 
-setInterval(tick, 1000);
-
-function setMode(val) {
-    speed = val;
+function setSpeed(v) {
+    state.speed = v;
 }
 
-function skip(h) {
-    gameMinutes = Math.max(0, gameMinutes + h * 60);
-    updateClock();
+function addTime(h) {
+    state.minutes = Math.max(0, state.minutes + h * 60);
+    render();
+}
+
+function reset() {
+    state.minutes = 0;
+    render();
 }
 
 function lock() {
-    unlocked = false;
-    document.getElementById('adminPanel').classList.add('hidden');
-    document.getElementById('lockView').classList.remove('hidden');
+    state.unlocked = false;
+
+    const admin = el('adminView');
+    const lock = el('lockView');
+
+    if (admin) admin.classList.add('hidden');
+    if (lock) lock.classList.remove('hidden');
 }
 
 async function unlock() {
-    const input = document.getElementById('codeInput').value;
-    const hash = await sha256(input);
+    const input = el('codeInput');
+    if (!input) return;
+
+    const hash = await sha256(input.value || '');
 
     if (hash === PASSWORD_HASH) {
-        unlocked = true;
-        document.getElementById('adminPanel').classList.remove('hidden');
-        document.getElementById('lockView').classList.add('hidden');
+        state.unlocked = true;
+
+        const admin = el('adminView');
+        const lock = el('lockView');
+
+        if (admin) admin.classList.remove('hidden');
+        if (lock) lock.classList.add('hidden');
     } else {
         alert('WRONG CODE');
     }
 }
 
-updateClock();
+// -------------------- INIT --------------------
+setInterval(tick, 1000);
+render();
 
+// expose
+window.setSpeed = setSpeed;
+window.addTime = addTime;
+window.reset = reset;
+window.lock = lock;
+window.unlock = unlock;
+
+})();
 </script>
 
 </body>
