@@ -27,7 +27,6 @@ body {
 .clock {
     font-size: 64px;
     margin: 20px 0;
-    letter-spacing: 2px;
 }
 
 .small {
@@ -55,13 +54,8 @@ button {
     color: #8ffcff;
 }
 
-.panel {
-    margin-top: 15px;
-}
-
-.hidden {
-    display: none;
-}
+.panel { margin-top: 15px; }
+.hidden { display: none; }
 
 hr {
     border: none;
@@ -75,21 +69,22 @@ hr {
 
 <div class="container">
 
-    <!-- LOCK MODE -->
     <div id="lockView">
         <div class="small">MISSION CLOCK</div>
-        <div class="clock" id="clockLock">00:00:00</div>
+        <div class="clock" id="clockLock">--:--:--</div>
+        <div class="small" id="status">WAITING FOR MISSION START</div>
 
         <input id="codeInput" type="password" placeholder="ACCESS CODE" />
         <br>
         <button onclick="unlock()">UNLOCK</button>
     </div>
 
-    <!-- ADMIN MODE -->
     <div id="adminView" class="hidden">
 
         <div class="small" id="dayLabel">DAY 1</div>
         <div class="clock" id="clockAdmin">00:00:00</div>
+
+        <div class="small" id="modeLabel">MODE: 1:6</div>
 
         <hr>
 
@@ -107,6 +102,7 @@ hr {
         </div>
 
         <div class="panel">
+            <button onclick="startMission()">START MISSION</button>
             <button onclick="lock()">LOCK</button>
             <button onclick="reset()">RESET</button>
         </div>
@@ -118,38 +114,52 @@ hr {
 <script>
 (() => {
 
+const PASSWORD = "JANUS-7XK9-OMEGA";
+
 let state = {
-    minutes: 0,
+    unlocked: false,
     speed: 6,
-    unlocked: false
+    offset: 0,
+    startTime: null
 };
 
-// demo password = "test"
-const PASSWORD_HASH = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+function el(id){ return document.getElementById(id); }
 
-// ---------- helpers ----------
-function el(id) {
-    return document.getElementById(id);
+function safe(id, val){
+    const n = el(id);
+    if(n) n.innerText = val;
 }
 
-function safeSet(id, value) {
-    const node = el(id);
-    if (node) node.innerText = value;
+function save(){
+    localStorage.setItem("m_speed", state.speed);
+    localStorage.setItem("m_offset", state.offset);
+    if(state.startTime) localStorage.setItem("m_start", state.startTime);
 }
 
-async function sha256(text) {
-    const buf = new TextEncoder().encode(text);
-    const hash = await crypto.subtle.digest('SHA-256', buf);
-    return [...new Uint8Array(hash)]
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
+function load(){
+    const s = localStorage.getItem("m_speed");
+    const o = localStorage.getItem("m_offset");
+    const t = localStorage.getItem("m_start");
+
+    if(s) state.speed = +s;
+    if(o) state.offset = +o;
+    if(t) state.startTime = +t;
 }
 
-// ---------- clock ----------
-function render() {
-    let total = Math.floor(state.minutes * 60);
+function running(){
+    return state.startTime !== null;
+}
 
-    let days = Math.floor(total / 86400);
+function gameSeconds(){
+    if(!running()) return 0;
+    const real = (Date.now() - state.startTime) / 1000;
+    return Math.floor(real * state.speed + state.offset);
+}
+
+function render(){
+    const total = gameSeconds();
+
+    let d = Math.floor(total / 86400);
     let r = total % 86400;
 
     let h = Math.floor(r / 3600);
@@ -163,62 +173,63 @@ function render() {
         String(m).padStart(2,'0') + ':' +
         String(s).padStart(2,'0');
 
-    safeSet('clockLock', time);
-    safeSet('clockAdmin', time);
-    safeSet('dayLabel', 'DAY ' + (days + 1));
+    safe("clockLock", running() ? time : "--:--:--");
+    safe("clockAdmin", time);
+    safe("dayLabel", "DAY " + (d + 1));
+    safe("status", running() ? "MISSION ACTIVE" : "WAITING FOR MISSION START");
+    safe("modeLabel", "MODE: 1:" + state.speed);
 }
 
-// ---------- logic ----------
-function tick() {
-    if (!state.unlocked) return;
-    state.minutes += state.speed / 60;
+function tick(){
     render();
 }
 
-function setSpeed(v) {
+function setSpeed(v){
     state.speed = v;
+    save();
 }
 
-function addTime(h) {
-    state.minutes = Math.max(0, state.minutes + h * 60);
-    render();
+function addTime(h){
+    state.offset += h * 3600;
+    save();
 }
 
-function reset() {
-    state.minutes = 0;
-    render();
-}
-
-function lock() {
-    state.unlocked = false;
-
-    el('adminView').classList.add('hidden');
-    el('lockView').classList.remove('hidden');
-}
-
-async function unlock() {
-    const input = el('codeInput');
-    if (!input) return;
-
-    const hash = await sha256(input.value || '');
-
-    if (hash === PASSWORD_HASH) {
-        state.unlocked = true;
-
-        el('adminView').classList.remove('hidden');
-        el('lockView').classList.add('hidden');
-    } else {
-        alert('WRONG CODE');
+function startMission(){
+    if(state.startTime === null){
+        state.startTime = Date.now();
+        save();
     }
 }
 
-// ---------- init ----------
-setInterval(tick, 1000);
-render();
+function reset(){
+    state.startTime = null;
+    state.offset = 0;
+    localStorage.clear();
+}
 
-// expose
+function lock(){
+    state.unlocked = false;
+    el("adminView").classList.add("hidden");
+    el("lockView").classList.remove("hidden");
+}
+
+function unlock(){
+    const v = el("codeInput").value;
+    if(v === PASSWORD){
+        state.unlocked = true;
+        el("adminView").classList.remove("hidden");
+        el("lockView").classList.add("hidden");
+    } else {
+        alert("WRONG CODE");
+    }
+}
+
+load();
+setInterval(tick, 1000);
+
 window.setSpeed = setSpeed;
 window.addTime = addTime;
+window.startMission = startMission;
 window.reset = reset;
 window.lock = lock;
 window.unlock = unlock;
